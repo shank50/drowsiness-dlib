@@ -1,0 +1,7 @@
+streamlit
+cmake
+opencv-python-headless
+numpy
+dlib-bin
+imutils
+
