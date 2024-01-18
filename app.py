@@ -1,9 +1,10 @@
+import streamlit as st
 import cv2
 import numpy as np
 import dlib
 from imutils import face_utils
+from PIL import Image
 
-video_capture = cv2.VideoCapture(0)
 face_detector = dlib.get_frontal_face_detector()
 landmark_predictor = dlib.shape_predictor("landmark.dat")
 
@@ -27,7 +28,7 @@ def calculate_distance(point_a, point_b):
     return np.linalg.norm(point_a - point_b)
 
 def detect_blink(eye_points):
-    #Detect if an eye is blinked based on landmark points
+    """Detect if an eye is blinked based on landmark points."""
     upper_lid_distance = calculate_distance(eye_points[1], eye_points[3]) + calculate_distance(eye_points[2], eye_points[4])
     lower_lid_distance = calculate_distance(eye_points[0], eye_points[5])
     ratio = upper_lid_distance / (2.0 * lower_lid_distance)
@@ -69,35 +70,47 @@ def update_status(left_eye_state, right_eye_state):
 
 def draw_landmarks(frame, landmarks):
     #Draw facial landmarks on the frame
-    for point in landmarks[36:48]:  
+    for point in landmarks[36:48]:  # Eye landmarks
         cv2.circle(frame, tuple(point), 1, (255, 255, 255), -1)
 
-while True:
-    ret, frame = video_capture.read()
-    if not ret:
-        break
+def main():
+    st.title("Drowsiness Detection App")
+    st.write("Real-time drowsiness detection using facial landmarks.")
 
-    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    detected_faces = face_detector(gray_frame)
+    # Start webcam
+    run = st.checkbox("Start Webcam")
+    FRAME_WINDOW = st.image([])
+    cap = cv2.VideoCapture(0)
 
-    for face in detected_faces:
-        x1, y1, x2, y2 = face.left(), face.top(), face.right(), face.bottom()
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    while run:
+        ret, frame = cap.read()
+        if not ret:
+            st.error("Failed to capture video.")
+            break
 
-        landmarks = landmark_predictor(gray_frame, face)
-        landmarks = face_utils.shape_to_np(landmarks)
+        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        detected_faces = face_detector(gray_frame)
 
-        left_eye_state = detect_blink(landmarks[36:42])
-        right_eye_state = detect_blink(landmarks[42:48])
+        for face in detected_faces:
+            x1, y1, x2, y2 = face.left(), face.top(), face.right(), face.bottom()
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
-        update_status(left_eye_state, right_eye_state)
+            landmarks = landmark_predictor(gray_frame, face)
+            landmarks = face_utils.shape_to_np(landmarks)
 
-        cv2.putText(frame, current_status, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.2, status_color, 3)
-        draw_landmarks(frame, landmarks)
+            left_eye_state = detect_blink(landmarks[36:42])
+            right_eye_state = detect_blink(landmarks[42:48])
 
-    cv2.imshow("Frame", frame)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+            update_status(left_eye_state, right_eye_state)
 
-video_capture.release()
-cv2.destroyAllWindows()
+            cv2.putText(frame, current_status, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.2, status_color, 3)
+            draw_landmarks(frame, landmarks)
+
+        # Convert the frame to RGB for Streamlit
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        FRAME_WINDOW.image(frame)
+
+    cap.release()
+
+if __name__ == "__main__":
+    main()
